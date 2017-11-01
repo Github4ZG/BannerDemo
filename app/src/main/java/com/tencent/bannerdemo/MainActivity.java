@@ -82,4 +82,6 @@ public class MainActivity extends AppCompatActivity {
                     (FrameLayout) itemView).getChildAt(0);
         }
     }
+
+
 }

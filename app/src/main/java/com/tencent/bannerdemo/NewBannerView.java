@@ -3,9 +3,11 @@ package com.tencent.bannerdemo;
 import android.content.Context;
 import android.graphics.Camera;
 import android.support.v4.view.PagerAdapter;
+import android.support.v4.view.ViewCompat;
 import android.support.v4.view.ViewPager;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -20,7 +22,7 @@ public class NewBannerView extends FrameLayout{
     private Context mContext;
     private BannerAdapter mAdapter;
     private LoopPagerAdapter mInnerLoopAdapter;
-    private LastLoopPagerView mLoopViewPager;
+    private MagicPagerView mLoopViewPager;
 
     //自动滚动相关参数
 
@@ -56,16 +58,29 @@ public class NewBannerView extends FrameLayout{
     }
 
     private void initLoopPagerView(){
-        mLoopViewPager = new LastLoopPagerView(mContext);
-        addView(mLoopViewPager,new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
+        mLoopViewPager = new MagicPagerView(mContext);
+        LayoutParams lp = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT);
+        lp.leftMargin = 500;
+        lp.rightMargin = 500;
+        lp.topMargin = 800;
+        lp.bottomMargin = 800;
+        setClipChildren(false);
+        addView(mLoopViewPager,lp);
+        setOnTouchListener(new OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                return mLoopViewPager.onTouchEvent(event);
+            }
+        });
+        //这种方式设置多预览会导致page动画畸变
+        //mLoopViewPager.setClipToPadding(false);
+        //mLoopViewPager.setPadding(500,0,500,0);
         //添加左右预览
         mLoopViewPager.setBackgroundColor(getResources().getColor(R.color.colorAccent));
-        mLoopViewPager.setClipToPadding(false);
-        mLoopViewPager.setPadding(100,0,100,0);
-        mLoopViewPager.setPageMargin(-80);
+        mLoopViewPager.setPageMargin(-20);
         //设置页面切换动画
-        mLoopViewPager.setPageTransformer(true,new ZoomOutPageTransformer());
-        mLoopViewPager.setOffscreenPageLimit(2);
+        mLoopViewPager.setPageTransformer(true,new DefaultTransformer());
+        mLoopViewPager.setOffscreenPageLimit(5);
     }
 
     private void initListener(){
@@ -294,6 +309,7 @@ public class NewBannerView extends FrameLayout{
 
         @Override
         public void transformPage(View page, float position) {
+            Log.d("mark","transformPage-->"+position);
             if (position < -1) {//(-Infinity,-1)
                 page.setScaleX(MIN_SCALE);
                 page.setScaleY(MIN_SCALE);
@@ -309,6 +325,67 @@ public class NewBannerView extends FrameLayout{
                 page.setScaleX(MIN_SCALE);
                 page.setScaleY(MIN_SCALE);
             }
+        }
+    }
+
+    class MyPageTransform implements ViewPager.PageTransformer {
+
+        final float SCALE_MAX = 0.8f;
+        final float ALPHA_MAX = 0.5f;
+
+        @Override
+        public void transformPage(View page, float position) {
+            float scale = (position < 0)
+                    ? ((1 - SCALE_MAX) * position + 1)
+                    : ((SCALE_MAX - 1) * position + 1);
+            float alpha = (position < 0)
+                    ? ((1 - ALPHA_MAX) * position + 1)
+                    : ((ALPHA_MAX - 1) * position + 1);
+            //为了滑动过程中，page间距不变，这里做了处理
+            if(position < 0) {
+                ViewCompat.setPivotX(page, page.getWidth());
+                ViewCompat.setPivotY(page, page.getHeight() / 2);
+            } else {
+                ViewCompat.setPivotX(page, 0);
+                ViewCompat.setPivotY(page, page.getHeight() / 2);
+            }
+            ViewCompat.setScaleX(page, scale);
+            ViewCompat.setScaleY(page, scale);
+            ViewCompat.setAlpha(page, Math.abs(alpha));
+        }
+    }
+
+    public class DefaultTransformer implements ViewPager.PageTransformer {
+        private static final float MAX_SCALE = 1.0f;
+        private static final float MIN_SCALE = 0.8f;
+        @Override
+        public void transformPage(View view, float position) {
+            Log.d("mark","transformPage-->"+position);
+/*            float alpha = 0;
+            if (0 <= position && position <= 1) {
+                alpha = 1 - position;
+            } else if (-1 < position && position < 0) {
+                alpha = position + 1;
+            }
+            view.setAlpha(alpha);*/
+            if (position < -1) {//(-Infinity,-1)
+                view.setScaleX(MIN_SCALE);
+                view.setScaleY(MIN_SCALE);
+            } else if (position <= 0) {//[-1,0]
+                float scaleFactor =  MIN_SCALE+(1-Math.abs(position))*(MAX_SCALE-MIN_SCALE);
+                view.setScaleX(scaleFactor);
+                view.setScaleY(scaleFactor);
+            } else if (position <= 1) {//(0,1]
+                float scaleFactor =  MIN_SCALE+(1-Math.abs(position))*(MAX_SCALE-MIN_SCALE);
+                view.setScaleX(scaleFactor);
+                view.setScaleY(scaleFactor);
+            } else {//(1,Infinity)
+                view.setScaleX(MIN_SCALE);
+                view.setScaleY(MIN_SCALE);
+            }
+            /*view.setTranslationX(view.getWidth() * -position);
+            float yPosition = position * view.getHeight();
+            view.setTranslationY(yPosition);*/
         }
     }
 }
